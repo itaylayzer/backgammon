@@ -1,17 +1,15 @@
 import * as THREE from "three";
+import * as CANNON from "cannon-es";
+
 import { createLight } from "./lib/createLights";
 import { loadedAssets } from "../viewmodels/useAssetLoader";
 
 import { OrbitControls } from "three/examples/jsm/Addons.js";
-import { Coin } from "./data/Coin";
+import { colors } from "./constants";
+import { GameMap } from "./data/GameMap";
+import { Dice } from "./data/Dice";
+import CannonDebugger from "cannon-es-debugger";
 
-const colors = {
-    background: "#e7cfb4",
-    board: "#c0c0c0",
-    wood: "#da6d42",
-    down: "#84240c",
-    woodlight: "#ffc18c",
-};
 const distance = 20;
 export default (assets: loadedAssets) => {
     const container = document.querySelector("div.gameContainer") as HTMLDivElement;
@@ -22,6 +20,12 @@ export default (assets: loadedAssets) => {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(colors.background);
+
+    const world = new CANNON.World();
+    world.gravity = new CANNON.Vec3(0, -9.81, 0);
+
+    // @ts-ignore
+    const cannonDebugger = CannonDebugger(scene, world, {});
 
     const camera = new THREE.OrthographicCamera(
         window.innerWidth / -30,
@@ -66,125 +70,18 @@ export default (assets: loadedAssets) => {
     //#endregion
     const updates: (() => void)[] = [];
 
+    const gameMap = new GameMap(assets.textures.board, world);
+
     function _createMap() {
-        {
-            const h = 60;
-            const w = 90;
-            const above = new THREE.Mesh(
-                new THREE.BoxGeometry(w, 0.5, h),
-                new THREE.MeshStandardMaterial({
-                    color: colors.wood,
-                    map: assets.textures.board,
-                })
-            );
-            const below = new THREE.Mesh(
-                new THREE.BoxGeometry(w, 0.5, h),
-                new THREE.MeshStandardMaterial({
-                    color: colors.down,
-                })
-            );
-
-            const sides = [
-                new THREE.Mesh(
-                    new THREE.BoxGeometry(w, 2, 1),
-                    new THREE.MeshStandardMaterial({
-                        color: colors.woodlight,
-                    })
-                ),
-                new THREE.Mesh(
-                    new THREE.BoxGeometry(w, 2, 1),
-                    new THREE.MeshStandardMaterial({
-                        color: colors.woodlight,
-                    })
-                ),
-                new THREE.Mesh(
-                    new THREE.BoxGeometry(h, 2, 1),
-                    new THREE.MeshStandardMaterial({
-                        color: colors.woodlight,
-                    })
-                ),
-                new THREE.Mesh(
-                    new THREE.BoxGeometry(h, 2, 1),
-                    new THREE.MeshStandardMaterial({
-                        color: colors.woodlight,
-                    })
-                ),
-                new THREE.Mesh(
-                    new THREE.BoxGeometry(h, 2, 2),
-                    new THREE.MeshStandardMaterial({
-                        color: colors.woodlight,
-                    })
-                ),
-            ];
-
-            for (const side of sides) {
-                side.position.y = 1;
-            }
-
-            sides[0].position.z = h / 2;
-            sides[1].position.z = -h / 2;
-            sides[2].position.x = -w / 2;
-            sides[3].position.x = w / 2;
-
-            sides[2].rotation.y = -Math.PI / 2;
-            sides[3].rotation.y = -Math.PI / 2;
-            sides[4].rotation.y = -Math.PI / 2;
-
-            sides[2].rotation;
-            sides[3].rotation;
-
-            below.position.y = -0.5;
-
-            scene.add(above);
-            scene.add(below);
-            scene.add(...sides);
-        }
-        const initialMode: Array<[number, boolean]> = [
-            [0, true],
-            [0, true],
-
-            [5, false],
-            [5, false],
-            [5, false],
-            [5, false],
-            [5, false],
-
-            [7, false],
-            [7, false],
-            [7, false],
-
-            [11, true],
-            [11, true],
-            [11, true],
-            [11, true],
-            [11, true],
-
-            [12, false],
-            [12, false],
-            [12, false],
-            [12, false],
-            [12, false],
-
-            [16, true],
-            [16, true],
-            [16, true],
-
-            [18, true],
-            [18, true],
-            [18, true],
-            [18, true],
-            [18, true],
-
-            [23, false],
-            [23, false],
-        ];
-
-        for (const coinState of initialMode) {
-            scene.add(new Coin(coinState[0], coinState[1]));
-        }
+        scene.add(gameMap);
     }
 
     function _documentEvents() {
+        container.addEventListener("click", () => {
+            if (gameMap.rollable) {
+                gameMap.rollDice(world, assets.textures);
+            }
+        });
         function onWindowResize() {
             const width = window.innerWidth;
             const height = window.innerHeight;
@@ -199,16 +96,18 @@ export default (assets: loadedAssets) => {
     _createMap();
     _documentEvents();
 
-    function animate() {
-        requestAnimationFrame(animate);
+    const updateInterval = setInterval(() => {
+        [...Dice.updates, ...updates].map((fn) => fn());
 
-        updates.map((fn) => fn());
+        world.step(3 / 60);
         controls.update();
+        // cannonDebugger.update();
         renderer.render(scene, camera);
-    }
-    animate();
+    }, 17);
+
     return {
         destroyer: () => {
+            clearInterval(updateInterval);
             while (container.firstChild) container.removeChild(container.firstChild);
         },
     };

@@ -49,7 +49,17 @@ const styles = useStyles({
 });
 
 export default () => (
-    <AssetLoader items={{ board: "textures/board.png" }}>
+    <AssetLoader
+        items={{
+            board: "textures/board.png",
+            dice1: "textures/dices/di1.png",
+            dice2: "textures/dices/di2.png",
+            dice3: "textures/dices/di3.png",
+            dice4: "textures/dices/di4.png",
+            dice5: "textures/dices/di5.png",
+            dice6: "textures/dices/di6.png",
+        }}
+    >
         <App />
     </AssetLoader>
 );
